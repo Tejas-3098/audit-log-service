@@ -70,5 +70,20 @@ class ArchiveResultOut(BaseModel):
     archived_record_ids: list[int]
 
 
+class RedactRequest(BaseModel):
+    """Request body for POST /audit/events/{id}/redact."""
+
+    fields: list[str] = Field(..., min_length=1)
+
+
+class RedactResultOut(BaseModel):
+    """Response body for POST /audit/events/{id}/redact."""
+
+    event_id: int
+    redacted_fields: list[str]
+    already_redacted_fields: list[str]
+    fields_not_found: list[str]
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()

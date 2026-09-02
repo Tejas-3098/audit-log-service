@@ -1,13 +1,22 @@
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-from fastapi import FastAPI, Query, status
+from fastapi import FastAPI, HTTPException, Query, status
 
 from app.db import get_connection, init_db
 from app.events import append_event
 from app.queries import EventQuery, query_events
+from app.redaction import redact_fields
 from app.retention import archive_older_than
-from app.schemas import ArchiveResultOut, EventCreate, EventOut, EventPage, VerifyResult
+from app.schemas import (
+    ArchiveResultOut,
+    EventCreate,
+    EventOut,
+    EventPage,
+    RedactRequest,
+    RedactResultOut,
+    VerifyResult,
+)
 from app.verify import verify_chain
 
 
@@ -118,6 +127,35 @@ def archive_records(older_than_days: int = Query(..., ge=0)) -> ArchiveResultOut
         return ArchiveResultOut(
             archived_count=result.archived_count,
             archived_record_ids=result.archived_record_ids,
+        )
+    finally:
+        conn.close()
+
+
+@app.post("/audit/events/{event_id}/redact", response_model=RedactResultOut)
+def redact_event_fields(event_id: int, request: RedactRequest) -> RedactResultOut:
+    """Redact one or more payload fields on a stored event.
+
+    The record's content_hash is NOT changed by this operation -- see
+    app/redaction.py for the full mechanism. /audit/verify will continue to report
+    the chain as intact after redaction, because it recomputes hashes using
+    effective_payload_field_hashes(), which substitutes the preserved original
+    field-hash for any redacted field rather than hashing the placeholder value.
+
+    Idempotent: re-redacting an already-redacted field is a no-op (reported in
+    already_redacted_fields, not an error) rather than double-hashing a placeholder.
+    """
+    conn = get_connection()
+    try:
+        try:
+            result = redact_fields(conn, event_id, request.fields)
+        except ValueError:
+            raise HTTPException(status_code=404, detail=f"No event with id {event_id}")
+        return RedactResultOut(
+            event_id=result.event_id,
+            redacted_fields=result.redacted_fields,
+            already_redacted_fields=result.already_redacted_fields,
+            fields_not_found=result.fields_not_found,
         )
     finally:
         conn.close()

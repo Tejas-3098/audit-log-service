@@ -42,6 +42,21 @@ CREATE INDEX IF NOT EXISTS idx_events_actor ON events (actor_id);
 CREATE INDEX IF NOT EXISTS idx_events_resource ON events (resource_type, resource_id);
 CREATE INDEX IF NOT EXISTS idx_events_event_type ON events (event_type);
 CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events (timestamp);
+
+-- Scenario B: field-level redaction. Stores the hash of a field's ORIGINAL value,
+-- preserved independently of the (now-placeholder) value sitting in events.payload.
+-- This is what lets content_hash still recompute correctly after redaction -- see
+-- app/redaction.py and app/hash_chain.py for the full reasoning.
+CREATE TABLE IF NOT EXISTS redactions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id        INTEGER NOT NULL REFERENCES events(id),
+    field_name      TEXT NOT NULL,
+    field_hash      TEXT NOT NULL,    -- hash of the ORIGINAL (pre-redaction) value
+    redacted_at     TEXT NOT NULL,
+    UNIQUE (event_id, field_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_redactions_event ON redactions (event_id);
 """
 
 

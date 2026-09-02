@@ -55,6 +55,23 @@ def hash_payload_fields(payload: dict) -> dict:
     return {key: sha256_hex(_canonical(value)) for key, value in payload.items()}
 
 
+def effective_payload_field_hashes(payload: dict, redaction_hashes: dict) -> dict:
+    """Compute the field-hashes to use for content_hash verification, accounting for
+    any redacted fields.
+
+    `redaction_hashes` maps field_name -> the ORIGINAL (pre-redaction) field_hash, as
+    stored in the redactions table. For fields present in redaction_hashes, that
+    preserved hash is used instead of hashing the field's current (placeholder) value
+    in `payload` -- this is what keeps content_hash stable across redaction.
+
+    For fields NOT in redaction_hashes, the current value in `payload` is hashed
+    normally, exactly as it was at write time.
+    """
+    fresh_hashes = hash_payload_fields(payload)
+    fresh_hashes.update(redaction_hashes)
+    return fresh_hashes
+
+
 def compute_content_hash(
     event_type: str,
     actor_id: str,

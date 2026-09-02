@@ -25,7 +25,8 @@ import sqlite3
 from dataclasses import dataclass
 from enum import Enum
 
-from app.hash_chain import GENESIS_HASH, compute_content_hash, hash_payload_fields
+from app.hash_chain import GENESIS_HASH, compute_content_hash, effective_payload_field_hashes
+from app.redaction import get_redaction_hashes
 import json
 
 
@@ -69,13 +70,14 @@ def verify_chain(conn: sqlite3.Connection) -> VerificationResult:
             continue
 
         payload = json.loads(row["payload"])
+        redaction_hashes = get_redaction_hashes(conn, row["id"])
         recomputed_hash = compute_content_hash(
             event_type=row["event_type"],
             actor_id=row["actor_id"],
             resource_type=row["resource_type"],
             resource_id=row["resource_id"],
             timestamp=row["timestamp"],
-            payload_field_hashes=hash_payload_fields(payload),
+            payload_field_hashes=effective_payload_field_hashes(payload, redaction_hashes),
         )
 
         if recomputed_hash != row["content_hash"]:
