@@ -6,7 +6,8 @@ from fastapi import FastAPI, Query, status
 from app.db import get_connection, init_db
 from app.events import append_event
 from app.queries import EventQuery, query_events
-from app.schemas import EventCreate, EventOut, EventPage, VerifyResult
+from app.retention import archive_older_than
+from app.schemas import ArchiveResultOut, EventCreate, EventOut, EventPage, VerifyResult
 from app.verify import verify_chain
 
 
@@ -97,6 +98,26 @@ def verify() -> VerifyResult:
             first_violation_record_id=result.first_violation_record_id,
             violation_type=result.violation_type.value if result.violation_type else None,
             detail=result.detail,
+        )
+    finally:
+        conn.close()
+
+
+@app.post("/audit/retention/archive", response_model=ArchiveResultOut)
+def archive_records(older_than_days: int = Query(..., ge=0)) -> ArchiveResultOut:
+    """Archive (soft-delete) all non-archived records whose event timestamp is older
+    than `older_than_days`. Archived records are never physically removed -- see
+    app/retention.py for why that matters for chain continuity.
+
+    This is a manually-triggered operation for this scope, not a scheduled background
+    job. See PLAN.md / ARCHITECTURE.md for the documented production gap.
+    """
+    conn = get_connection()
+    try:
+        result = archive_older_than(conn, older_than_days)
+        return ArchiveResultOut(
+            archived_count=result.archived_count,
+            archived_record_ids=result.archived_record_ids,
         )
     finally:
         conn.close()

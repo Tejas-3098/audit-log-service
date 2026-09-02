@@ -63,5 +63,12 @@ class VerifyResult(BaseModel):
     detail: str | None = None
 
 
+class ArchiveResultOut(BaseModel):
+    """Response body for POST /audit/retention/archive."""
+
+    archived_count: int
+    archived_record_ids: list[int]
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
