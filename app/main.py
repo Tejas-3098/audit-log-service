@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-from fastapi import FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, HTTPException, Query, status
 
+from app.auth import require_compliance, require_read, require_write
 from app.db import get_connection, init_db
 from app.compliance import generate_account_access_report
 from app.events import append_event
@@ -44,7 +45,12 @@ def health() -> dict:
     return {"status": "ok"}
 
 
-@app.post("/audit/events", response_model=EventOut, status_code=status.HTTP_201_CREATED)
+@app.post(
+    "/audit/events",
+    response_model=EventOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_write)],
+)
 def create_event(event: EventCreate) -> EventOut:
     """Append a new event to the audit log.
 
@@ -59,7 +65,11 @@ def create_event(event: EventCreate) -> EventOut:
         conn.close()
 
 
-@app.get("/audit/events", response_model=EventPage)
+@app.get(
+    "/audit/events",
+    response_model=EventPage,
+    dependencies=[Depends(require_read)],
+)
 def list_events(
     actor_id: str | None = None,
     resource_type: str | None = None,
@@ -94,7 +104,11 @@ def list_events(
         conn.close()
 
 
-@app.get("/audit/verify", response_model=VerifyResult)
+@app.get(
+    "/audit/verify",
+    response_model=VerifyResult,
+    dependencies=[Depends(require_read)],
+)
 def verify() -> VerifyResult:
     """Walk the full audit chain and report whether it's intact.
 
@@ -117,7 +131,11 @@ def verify() -> VerifyResult:
         conn.close()
 
 
-@app.post("/audit/retention/archive", response_model=ArchiveResultOut)
+@app.post(
+    "/audit/retention/archive",
+    response_model=ArchiveResultOut,
+    dependencies=[Depends(require_write)],
+)
 def archive_records(older_than_days: int = Query(..., ge=0)) -> ArchiveResultOut:
     """Archive (soft-delete) all non-archived records whose event timestamp is older
     than `older_than_days`. Archived records are never physically removed -- see
@@ -137,7 +155,11 @@ def archive_records(older_than_days: int = Query(..., ge=0)) -> ArchiveResultOut
         conn.close()
 
 
-@app.post("/audit/events/{event_id}/redact", response_model=RedactResultOut)
+@app.post(
+    "/audit/events/{event_id}/redact",
+    response_model=RedactResultOut,
+    dependencies=[Depends(require_write)],
+)
 def redact_event_fields(event_id: int, request: RedactRequest) -> RedactResultOut:
     """Redact one or more payload fields on a stored event.
 
@@ -166,7 +188,11 @@ def redact_event_fields(event_id: int, request: RedactRequest) -> RedactResultOu
         conn.close()
 
 
-@app.get("/audit/export", response_model=ExportBundleOut)
+@app.get(
+    "/audit/export",
+    response_model=ExportBundleOut,
+    dependencies=[Depends(require_read)],
+)
 def export(
     resource_id: str | None = None,
     actor_id: str | None = None,
@@ -215,7 +241,11 @@ def export(
         conn.close()
 
 
-@app.get("/audit/compliance/account-access-report", response_model=ComplianceReportOut)
+@app.get(
+    "/audit/compliance/account-access-report",
+    response_model=ComplianceReportOut,
+    dependencies=[Depends(require_compliance)],
+)
 def compliance_account_access_report(
     requested_by: str = Query(..., description="Identifier of the requesting regulator/compliance user"),
     actor_id: str | None = None,

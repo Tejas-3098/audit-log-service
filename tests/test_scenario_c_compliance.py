@@ -1,18 +1,8 @@
-import pytest
 from fastapi.testclient import TestClient
 
-import app.db as db_module
 from app.main import app
 
 client = TestClient(app)
-
-
-@pytest.fixture(autouse=True)
-def isolated_db(tmp_path, monkeypatch):
-    test_db_path = tmp_path / "test_audit_log.db"
-    monkeypatch.setattr(db_module, "DB_PATH", test_db_path)
-    db_module.init_db()
-    yield
 
 
 def _create(**overrides):
