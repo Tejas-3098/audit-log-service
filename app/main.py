@@ -4,6 +4,7 @@ from datetime import datetime
 from fastapi import FastAPI, HTTPException, Query, status
 
 from app.db import get_connection, init_db
+from app.compliance import generate_account_access_report
 from app.events import append_event
 from app.export import export_bundle
 from app.queries import EventQuery, query_events
@@ -11,6 +12,7 @@ from app.redaction import redact_fields
 from app.retention import archive_older_than
 from app.schemas import (
     ArchiveResultOut,
+    ComplianceReportOut,
     EventCreate,
     EventOut,
     EventPage,
@@ -208,6 +210,51 @@ def export(
                 )
                 for r in bundle.records
             ],
+        )
+    finally:
+        conn.close()
+
+
+@app.get("/audit/compliance/account-access-report", response_model=ComplianceReportOut)
+def compliance_account_access_report(
+    requested_by: str = Query(..., description="Identifier of the requesting regulator/compliance user"),
+    actor_id: str | None = None,
+    event_type: str | None = None,
+    timestamp_from: datetime | None = None,
+    timestamp_to: datetime | None = None,
+    limit: int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+) -> ComplianceReportOut:
+    """Scenario C: compliance/regulatory report of access to client account data.
+
+    Always scoped to resourceType == ACCOUNT (the assumed mapping for "client account
+    data" in this service -- see SCENARIO_C.md for the full clarification process).
+    Every call to this endpoint writes its own COMPLIANCE_REPORT_GENERATED audit
+    event, so that who generated an account-access report is itself always subject to
+    later audit.
+
+    `requested_by` is required and is recorded as the actor on that audit event --
+    stands in for real regulator identity/authentication, which is scoped out of this
+    implementation (see SCENARIO_C.md "What was scoped out").
+    """
+    conn = get_connection()
+    try:
+        report = generate_account_access_report(
+            conn,
+            requested_by=requested_by,
+            actor_id=actor_id,
+            event_type=event_type,
+            timestamp_from=timestamp_from.isoformat() if timestamp_from else None,
+            timestamp_to=timestamp_to.isoformat() if timestamp_to else None,
+            limit=limit,
+            offset=offset,
+        )
+        return ComplianceReportOut(
+            items=report.items,
+            total=report.total,
+            limit=report.limit,
+            offset=report.offset,
+            report_event_id=report.report_event_id,
         )
     finally:
         conn.close()
