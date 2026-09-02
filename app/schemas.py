@@ -53,5 +53,15 @@ class EventPage(BaseModel):
     offset: int
 
 
+class VerifyResult(BaseModel):
+    """Response body for GET /audit/verify."""
+
+    intact: bool
+    records_checked: int
+    first_violation_record_id: int | None = None
+    violation_type: str | None = None
+    detail: str | None = None
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()

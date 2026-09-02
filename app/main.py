@@ -6,7 +6,8 @@ from fastapi import FastAPI, Query, status
 from app.db import get_connection, init_db
 from app.events import append_event
 from app.queries import EventQuery, query_events
-from app.schemas import EventCreate, EventOut, EventPage
+from app.schemas import EventCreate, EventOut, EventPage, VerifyResult
+from app.verify import verify_chain
 
 
 @asynccontextmanager
@@ -74,5 +75,28 @@ def list_events(
         )
         items, total = query_events(conn, query)
         return EventPage(items=items, total=total, limit=limit, offset=offset)
+    finally:
+        conn.close()
+
+
+@app.get("/audit/verify", response_model=VerifyResult)
+def verify() -> VerifyResult:
+    """Walk the full audit chain and report whether it's intact.
+
+    On failure, reports the first inconsistent record and distinguishes a
+    CONTENT_MISMATCH (the record's own hash no longer matches its content) from a
+    BROKEN_LINK (the record's previous_hash doesn't match the prior record's hash).
+    See app/verify.py for the full reasoning behind this distinction.
+    """
+    conn = get_connection()
+    try:
+        result = verify_chain(conn)
+        return VerifyResult(
+            intact=result.intact,
+            records_checked=result.records_checked,
+            first_violation_record_id=result.first_violation_record_id,
+            violation_type=result.violation_type.value if result.violation_type else None,
+            detail=result.detail,
+        )
     finally:
         conn.close()
