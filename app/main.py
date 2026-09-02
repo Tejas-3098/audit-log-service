@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException, Query, status
 
 from app.db import get_connection, init_db
 from app.events import append_event
+from app.export import export_bundle
 from app.queries import EventQuery, query_events
 from app.redaction import redact_fields
 from app.retention import archive_older_than
@@ -13,6 +14,8 @@ from app.schemas import (
     EventCreate,
     EventOut,
     EventPage,
+    ExportBundleOut,
+    ExportedRecordOut,
     RedactRequest,
     RedactResultOut,
     VerifyResult,
@@ -156,6 +159,55 @@ def redact_event_fields(event_id: int, request: RedactRequest) -> RedactResultOu
             redacted_fields=result.redacted_fields,
             already_redacted_fields=result.already_redacted_fields,
             fields_not_found=result.fields_not_found,
+        )
+    finally:
+        conn.close()
+
+
+@app.get("/audit/export", response_model=ExportBundleOut)
+def export(
+    resource_id: str | None = None,
+    actor_id: str | None = None,
+) -> ExportBundleOut:
+    """Export a self-contained, independently verifiable bundle of records for a
+    given resourceId or actorId (at least one required).
+
+    See app/export.py for what a recipient can actually verify from this bundle and
+    why it's structured the way it is (previous_hash/next_hash captured from the FULL
+    chain at export time, plus a manifest_hash over the whole bundle).
+    """
+    if resource_id is None and actor_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one of resource_id or actor_id must be provided.",
+        )
+
+    conn = get_connection()
+    try:
+        bundle = export_bundle(conn, resource_id=resource_id, actor_id=actor_id)
+        return ExportBundleOut(
+            exported_at=bundle.exported_at,
+            filter_resource_id=bundle.filter_resource_id,
+            filter_actor_id=bundle.filter_actor_id,
+            record_count=bundle.record_count,
+            manifest_hash=bundle.manifest_hash,
+            records=[
+                ExportedRecordOut(
+                    id=r.id,
+                    event_type=r.event_type,
+                    actor_id=r.actor_id,
+                    resource_type=r.resource_type,
+                    resource_id=r.resource_id,
+                    payload=r.payload,
+                    timestamp=r.timestamp,
+                    received_at=r.received_at,
+                    content_hash=r.content_hash,
+                    previous_hash=r.previous_hash,
+                    next_hash=r.next_hash,
+                    archived=r.archived,
+                )
+                for r in bundle.records
+            ],
         )
     finally:
         conn.close()

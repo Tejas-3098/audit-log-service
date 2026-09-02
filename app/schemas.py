@@ -85,5 +85,35 @@ class RedactResultOut(BaseModel):
     fields_not_found: list[str]
 
 
+class ExportedRecordOut(BaseModel):
+    id: int
+    event_type: str
+    actor_id: str
+    resource_type: str
+    resource_id: str
+    payload: dict[str, Any]
+    timestamp: str
+    received_at: str
+    content_hash: str
+    previous_hash: str
+    next_hash: str | None = None
+    archived: bool
+
+
+class ExportBundleOut(BaseModel):
+    """Response body for GET /audit/export.
+
+    See app/export.py for the full reasoning behind previous_hash/next_hash/
+    manifest_hash and what each lets a recipient independently verify.
+    """
+
+    exported_at: str
+    filter_resource_id: str | None = None
+    filter_actor_id: str | None = None
+    record_count: int
+    manifest_hash: str
+    records: list[ExportedRecordOut]
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
