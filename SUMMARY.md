@@ -52,12 +52,13 @@ originally planned still went in — this was a resequencing, not a scope cut.
 
 | Decision | Trade-off accepted | Documented in |
 |---|---|---|
-| SQLite over Postgres | Simpler, zero-external-dependency, but not built for concurrent writers at scale | `ARCHITECTURE.md` §10 |
+| SQLite over Postgres | Simpler, zero-external-dependency, but not built for concurrent writers at scale | `ARCHITECTURE.md` §11 |
 | Field-level hash commitment for redaction (not crypto-shredding) | Directly solves the stated problem without key-management overhead, but doesn't provide true cryptographic erasure — a real "right to be forgotten" need would require the stronger Option 3 | `ARCHITECTURE.md` §7 |
-| Offset/limit pagination (not cursor-based) | Simpler to implement and reason about; degrades at very large scale | `ARCHITECTURE.md` §10 |
+| Offset/limit pagination (not cursor-based) | Simpler to implement and reason about; degrades at very large scale | `ARCHITECTURE.md` §11 |
 | Manually-triggered archiving (not scheduled) | Matches this scope's needs; a real deployment needs a scheduler | `ARCHITECTURE.md` §6 |
 | Minimal static API keys (not OAuth2/RBAC) | Real, demonstrable auth mechanism proportionate to this timebox; genuinely insufficient for production | `ARCHITECTURE.md` §9, `README.md` |
 | Scenario C's `compliance` scope stands in for real external-auditor provisioning | Concrete and testable now; a real regulator access-grant system is a substantial separate feature | `SCENARIO_C.md` §6 |
+| Not deploying the service anywhere | Matches the assignment's ask for a locally-runnable prototype; deployment considerations (containerization, real DB, secrets management, observability, CI) documented instead of built | `ARCHITECTURE.md` §10 |
 
 ## 4. Assumptions
 
@@ -71,7 +72,7 @@ Consolidated from `REQUIREMENTS.md` and `SCENARIO_C.md`:
   trade-offs — not that every conceivable production concern is fully implemented
   given the explicit multi-day timebox.
 
-## 5. Limitations (full list in `TESTING.md` and `ARCHITECTURE.md` §10)
+## 5. Limitations (full list in `TESTING.md` and `ARCHITECTURE.md` §11)
 
 - No concurrency/load testing.
 - Redaction does not provide true cryptographic erasure (see trade-offs above).
