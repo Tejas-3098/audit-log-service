@@ -8,6 +8,8 @@ actual data store to confirm tamper detection.
 import sqlite3
 from pathlib import Path
 
+# Tests patch this module-level constant directly (see tests/test_write_api.py) to
+# point the app at an isolated throwaway file rather than the dev database.
 DB_PATH = Path(__file__).resolve().parent.parent / "audit_log.db"
 
 # Genesis value: the previousHash stored on the very first record in the chain.

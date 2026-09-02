@@ -44,5 +44,14 @@ class EventOut(BaseModel):
     archived_at: str | None = None
 
 
+class EventPage(BaseModel):
+    """Paginated response for GET /audit/events."""
+
+    items: list[EventOut]
+    total: int
+    limit: int
+    offset: int
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()

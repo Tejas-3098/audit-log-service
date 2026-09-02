@@ -11,7 +11,7 @@ from app.hash_chain import GENESIS_HASH, compute_content_hash, hash_payload_fiel
 from app.schemas import EventCreate, EventOut, now_iso
 
 
-def _row_to_event_out(row: sqlite3.Row) -> EventOut:
+def row_to_event_out(row: sqlite3.Row) -> EventOut:
     return EventOut(
         id=row["id"],
         event_type=row["event_type"],
@@ -81,4 +81,4 @@ def append_event(conn: sqlite3.Connection, event: EventCreate) -> EventOut:
     row = conn.execute(
         "SELECT * FROM events WHERE id = ?", (cursor.lastrowid,)
     ).fetchone()
-    return _row_to_event_out(row)
+    return row_to_event_out(row)
