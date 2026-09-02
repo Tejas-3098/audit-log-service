@@ -1,5 +1,16 @@
 # Task Decomposition — Scenario A (Core Audit Log Service)
 
+> **Schedule note (added Day 2):** The original plan targeted finishing all of
+> Scenario A (Tasks 1–8) within Day 1. In practice, Day 1 covered Tasks 1–5 (scaffold
+> through the query API) — the remaining Scenario A work (chain verification endpoint,
+> end-to-end tamper-detection test, Day 1 log wrap-up) is carrying into Day 2 alongside
+> the originally Day-2-scoped work (Scenarios B and C, hardening, docs, summary). This
+> is a straightforward schedule shift, not a scope cut — everything originally planned
+> is still going in, just resequenced across the two real working days. Noted here
+> rather than silently redrawing the day boundaries, since the assignment explicitly
+> asks for an honest account of process, including where the actual pace diverged from
+> the plan.
+
 Tasks below are sequenced by dependency, not just by priority. Each maps to a planned commit.
 
 | # | Task | Depends on | Notes |
