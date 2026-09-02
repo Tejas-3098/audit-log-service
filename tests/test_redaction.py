@@ -136,3 +136,38 @@ def test_redact_multiple_fields_in_one_call():
     assert query_result["payload"]["ssn"] == "[REDACTED]"
     assert query_result["payload"]["note"] == "keep me"
     assert client.get("/audit/verify").json()["intact"] is True
+
+
+def test_redact_mixed_batch_new_already_redacted_and_not_found():
+    """Closes a gap explicitly called out in TESTING.md: individually,
+    redacted_fields/already_redacted_fields/fields_not_found are each tested, but
+    not in combination within a single call. A real client is quite likely to send
+    a mixed batch (e.g., re-submitting a redaction request that partially succeeded
+    before), so this needs to work correctly all at once, not just in isolation.
+    """
+    event = _create(payload={"account_number": "111", "ssn": "222", "note": "keep me"})
+
+    # Pre-redact one field so this call has a genuine "already redacted" case to
+    # mix in alongside a new field and a nonexistent one.
+    client.post(f"/audit/events/{event['id']}/redact", json={"fields": ["ssn"]})
+
+    response = client.post(
+        f"/audit/events/{event['id']}/redact",
+        json={"fields": ["account_number", "ssn", "not_a_real_field"]},
+    )
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["redacted_fields"] == ["account_number"]
+    assert body["already_redacted_fields"] == ["ssn"]
+    assert body["fields_not_found"] == ["not_a_real_field"]
+
+    # Confirm the actual data state matches: both account_number and ssn end up
+    # redacted (ssn was already redacted from the first call), note is untouched,
+    # and the chain is still intact after this mixed-outcome call.
+    query_result = client.get("/audit/events").json()["items"][0]
+    assert query_result["payload"]["account_number"] == "[REDACTED]"
+    assert query_result["payload"]["ssn"] == "[REDACTED]"
+    assert query_result["payload"]["note"] == "keep me"
+    assert client.get("/audit/verify").json()["intact"] is True
+
