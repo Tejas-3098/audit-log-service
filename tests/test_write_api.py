@@ -1,26 +1,8 @@
-import pytest
 from fastapi.testclient import TestClient
 
-import app.db as db_module
 from app.main import app
 
 client = TestClient(app)
-
-
-@pytest.fixture(autouse=True)
-def isolated_db(tmp_path, monkeypatch):
-    """Point the app at a throwaway SQLite file for the duration of each test.
-
-    Patches app.db.DB_PATH directly (rather than relying on an env var read at import
-    time) because module import order across test files is not guaranteed -- an env
-    var set in this file could run after app.db has already been imported by another
-    test module, silently leaving the real dev database in use.
-    """
-    test_db_path = tmp_path / "test_audit_log.db"
-    monkeypatch.setattr(db_module, "DB_PATH", test_db_path)
-    db_module.init_db()
-    yield
-    # tmp_path is cleaned up automatically by pytest; no manual teardown needed.
 
 
 def _sample_event(**overrides):
