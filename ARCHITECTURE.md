@@ -187,7 +187,57 @@ Not specified in the assignment. Minimal static API key implemented (documented 
 `README.md`), with production RBAC/OAuth2/mTLS explicitly scoped out — see
 `REQUIREMENTS.md` §3 for the full reasoning on this trade-off.
 
-## 10. Known Limitations / Production Gaps
+## 10. Deployment Considerations
+
+This service is deliberately **not deployed anywhere** for this assignment — it's
+built and documented to run locally, per the deliverables' emphasis on a runnable
+prototype with local setup instructions, and the live defense's expectation of
+running/modifying code in the engineer's own environment. Actually deploying it would
+spend time on infrastructure rather than the engineering judgment being assessed.
+
+That said, here's what moving this to production would actually require — listed to
+show the gap is understood, not to pretend it's already closed:
+
+- **Containerization.** A `Dockerfile` (not included) would wrap the app +
+  dependencies; `docker-compose` or similar for local multi-service orchestration if
+  a real database were introduced (see next point).
+- **Database.** SQLite is a deliberate scope choice for this prototype, chosen
+  specifically because it lets a reviewer open the file directly and hand-edit a row
+  to demonstrate tamper detection. A production deployment handling concurrent
+  writers would move to Postgres, with the schema translating directly (the hash chain logic is entirely database-agnostic — it
+  operates on rows via a `sqlite3.Connection`-shaped interface in this codebase, and
+  swapping to `psycopg`/SQLAlchemy would be a connection-layer change, not a redesign
+  of `hash_chain.py`, `verify.py`, `redaction.py`, or `export.py`).
+- **Process model.** `uvicorn app.main:app --reload` (the local dev command in
+  `README.md`) is single-process and auto-reloading — not production-appropriate.
+  Production would run multiple `uvicorn` workers (e.g., via `gunicorn` with
+  `uvicorn.workers.UvicornWorker`) behind a reverse proxy/load balancer (nginx, or a
+  managed equivalent).
+- **Secrets management.** The API keys are currently plain environment variables with
+  insecure defaults for local dev (`README.md` §Authentication). Production would pull
+  these from a real secrets manager (AWS Secrets Manager, HashiCorp Vault, or
+  equivalent), rotated periodically — which would also require the key-rotation
+  support explicitly noted as unimplemented in `TESTING.md`.
+- **Observability.** No structured logging, metrics, or tracing exist currently
+  (noted as a gap in §11 below). Production would need request logging correlated
+  with `actor_id`/`resource_id` where relevant, metrics on write throughput and
+  `/audit/verify` chain-length-over-time, and alerting on any `/audit/verify` call
+  reporting `intact: false` — arguably the single most important alert this system
+  could ever fire.
+- **CI.** No CI pipeline exists in this repo. A minimal one (GitHub Actions running
+  `pytest tests/ -v` on every PR) would be a natural, low-cost addition — it would
+  have caught nothing new here specifically (every PR in this project's history was
+  manually verified and human-tested before merging), but it turns that discipline
+  into an enforced gate rather than a personal habit, which matters once more than
+  one engineer is contributing.
+- **Backups / disaster recovery.** For an audit log specifically, backup integrity
+  matters as much as the live chain's integrity — a restored backup should itself be
+  independently verifiable via `/audit/verify` without modification, which the
+  current design already supports (verification only depends on the data in the
+  `events`/`redactions` tables), but this hasn't been tested against an actual
+  backup/restore cycle.
+
+## 11. Known Limitations / Production Gaps
 
 - Single-writer prototype assumption; no concurrent-write race handling beyond what
   SQLite provides by default.
