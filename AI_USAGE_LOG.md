@@ -24,3 +24,20 @@ summary will be added at the end (see `SUMMARY.md` once written).
   before accepting rather than taking the first suggestion.
 
 ---
+
+## Session: Day 1, 2026-09-01 — Local test run (write API)
+
+- **Ran:** `pytest tests/ -v` locally after pulling the schema, hash chain, and write
+  API commits — first real execution of the FastAPI layer (previously only manually
+  verified via direct calls to the underlying logic in a sandboxed environment without
+  network access to install FastAPI/pytest).
+- **Result:** 14 passed, 2 deprecation warnings (`@app.on_event("startup")` deprecated
+  in current FastAPI in favor of lifespan handlers).
+- **AI suggested:** Replace with an `@asynccontextmanager` lifespan function.
+- **Accepted as-is.** Small, low-risk, well-documented FastAPI migration path.
+- **Note:** This is a good example of the assignment's expected workflow — AI-generated
+  code was written without the ability to execute it in the authoring environment,
+  a real issue surfaced on first actual test run, and was fixed and logged rather than
+  assumed correct.
+
+---
