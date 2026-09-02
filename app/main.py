@@ -1,19 +1,24 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, status
 
 from app.db import get_connection, init_db
 from app.events import append_event
 from app.schemas import EventCreate, EventOut
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+
 app = FastAPI(
     title="Audit Log Service",
     description="Tamper-evident, append-only audit log service.",
     version="0.1.0",
+    lifespan=lifespan,
 )
-
-
-@app.on_event("startup")
-def on_startup() -> None:
-    init_db()
 
 
 @app.get("/health")
