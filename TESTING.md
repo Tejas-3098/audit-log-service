@@ -75,10 +75,6 @@ Two layers of verification were used throughout this project, consistently:
 - **HTTP-level concerns**: no tests for request size limits, timeout behavior, or
   behavior under malformed JSON bodies (relying on FastAPI/Starlette's default
   handling, not independently verified here).
-- **The `already_redacted_fields` / `fields_not_found` mixed-batch case** isn't
-  explicitly tested (e.g., one call redacting one already-redacted field and one
-  never-before-seen field in the same request) — individually tested, not in
-  combination.
 - **Auth key rotation / multiple valid keys per scope.** The current design supports
   exactly one key per scope at a time (via a single env var) — no tests (or
   implementation) for supporting multiple simultaneously-valid keys, which a real
