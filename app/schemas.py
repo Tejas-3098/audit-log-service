@@ -115,5 +115,19 @@ class ExportBundleOut(BaseModel):
     records: list[ExportedRecordOut]
 
 
+class ComplianceReportOut(BaseModel):
+    """Response body for GET /audit/compliance/account-access-report.
+
+    See SCENARIO_C.md for the clarification process behind this endpoint's scope
+    and design.
+    """
+
+    items: list[EventOut]
+    total: int
+    limit: int
+    offset: int
+    report_event_id: int
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
