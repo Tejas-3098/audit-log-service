@@ -46,3 +46,39 @@ Tasks below are sequenced by dependency, not just by priority. Each maps to a pl
   in `ARCHITECTURE.md`.
 - `hashlib.sha256` for hashing, `json.dumps(..., sort_keys=True, separators=(",", ":"))` for
   canonical serialization.
+
+---
+
+# Task Decomposition — Scenario B (Retention & Redaction)
+
+Builds on Scenario A. Sequenced by dependency; each row maps to a planned commit,
+each roughly its own feature branch given the distinct sub-problems involved.
+
+| # | Task | Depends on | Notes |
+|---|---|---|---|
+| B1 | Retention/archiving: configurable-window archive operation | Scenario A schema (archived/archived_at columns already added in Task 2) | Archiving is a deliberate operation (triggered via endpoint), not a background job, for this scope -- documented as a production gap (real system would run this on a schedule) |
+| B2 | Query API awareness of archived records | B1 | Decide default behavior: does GET /audit/events include archived records by default? (Answer: yes by default, since archived != deleted; add `include_archived` style control if it turns out to matter -- keep it simple unless a real need appears) |
+| B3 | Verify endpoint archive-awareness confirmation | B1, existing verify.py (already has archive-skip logic built in from Scenario A, written forward-looking) | This task is mostly *testing* existing behavior, not new implementation -- verify.py already skips content re-check on archived records while preserving chain continuity through them |
+| B4 | Field-level redaction endpoint | Scenario A hash chain (already field-hash-based, also written forward-looking) | The hash chain design from Task 3 already hashes payload fields independently specifically to enable this -- this task is "cash in" on that earlier design decision |
+| B5 | Redaction + verify integration test | B4, B3 | Confirms redacting a field does NOT break /audit/verify -- the core claim of the whole redaction design |
+| B6 | Bulk export endpoint | Scenario A query API | Self-contained, independently verifiable bundle for a given resourceId/actorId |
+| B7 | Scenario B documentation | B1-B6 | Trade-offs, especially the redaction design rationale (Option 1 vs. Option 3, see REQUIREMENTS.md) |
+
+## Acceptance Criteria (high level)
+
+- **B1:** Archiving a record sets `archived=1` and `archived_at`; archived records are
+  never returned by a mutation path (there isn't one) and remain in the database
+  (soft-delete, not physical delete) so chain continuity is preserved.
+- **B2:** Existing query filters continue to work correctly whether or not archived
+  records are present in the result set.
+- **B3:** `/audit/verify` reports intact on a chain containing archived records, and
+  still correctly detects tampering on non-archived records in the same chain.
+- **B4:** Redacting a payload field replaces its value with a placeholder but does not
+  change the record's `content_hash`; the original field-hash is preserved separately
+  so `/audit/verify` still recomputes correctly.
+- **B5:** A record can be redacted after being written, and `/audit/verify` reports the
+  chain as intact both immediately before and after the redaction.
+- **B6:** The export bundle for a given `resourceId`/`actorId` includes enough metadata
+  (chain hashes) that a recipient could recompute and confirm the exported slice
+  wasn't altered, independent of querying the live service again.
+
