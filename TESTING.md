@@ -89,3 +89,33 @@ pytest tests/ -v
 
 No network access or external services required — SQLite runs in-process, and every
 test uses an isolated, throwaway database file (see `tests/conftest.py`).
+
+### Coverage
+
+```bash
+pytest --cov=app --cov-report=term-missing tests/
+```
+
+`pytest-cov` reports line coverage per module and flags any uncovered lines
+directly, rather than relying on "we wrote a lot of tests" as a proxy for actual
+coverage.
+
+### Combined scenario tests
+
+In addition to per-endpoint unit/integration tests, three files walk full,
+realistic multi-step narratives end-to-end rather than testing features in
+isolation:
+
+- `test_e2e_validation_flow.py` — Scenario A: write → query → verify → tamper →
+  verify, the assignment's own described validation flow.
+- `test_scenario_b_e2e.py` — Scenario B: retention, redaction, and export
+  composed together in one account's realistic history (an old record gets
+  archived, a different record's sensitive field gets redacted, the whole account
+  gets exported for a regulator — all while the chain stays verifiably intact).
+- `test_scenario_c_compliance.py` — Scenario C: the compliance report's
+  self-referential audit property (a report call is itself an auditable event a
+  later report call can see).
+- `test_security_scenarios.py` — a combined adversarial narrative: an
+  unauthenticated attacker locked out everywhere, a stolen token that can't be
+  escalated beyond its scope, a forged token rejected on signature verification
+  alone, and an expired token that can't be replayed.
