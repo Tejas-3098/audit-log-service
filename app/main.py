@@ -3,7 +3,14 @@ from datetime import datetime
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 
-from app.auth import require_compliance, require_read, require_write
+from app.auth import (
+    TOKEN_TTL_SECONDS,
+    issue_token,
+    require_compliance,
+    require_read,
+    require_write,
+    scope_for_client_secret,
+)
 from app.db import get_connection, init_db
 from app.compliance import generate_account_access_report
 from app.events import append_event
@@ -21,6 +28,8 @@ from app.schemas import (
     ExportedRecordOut,
     RedactRequest,
     RedactResultOut,
+    TokenRequest,
+    TokenResponse,
     VerifyResult,
 )
 from app.verify import verify_chain
@@ -43,6 +52,28 @@ app = FastAPI(
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+@app.post("/auth/token", response_model=TokenResponse)
+def issue_token_endpoint(request: TokenRequest) -> TokenResponse:
+    """Exchange a client secret for a short-lived, signed bearer token.
+
+    The requested scope is derived from which known client secret was presented --
+    a client can't request a scope it doesn't hold a secret for. See app/auth.py
+    for the full authentication/authorization design.
+    """
+    scope = scope_for_client_secret(request.client_secret)
+    if scope is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid client credentials.",
+        )
+    token = issue_token(request.client_id, scope)
+    return TokenResponse(
+        access_token=token,
+        scope=scope,
+        expires_in=TOKEN_TTL_SECONDS,
+    )
 
 
 @app.post(
