@@ -129,5 +129,21 @@ class ComplianceReportOut(BaseModel):
     report_event_id: int
 
 
+class TokenRequest(BaseModel):
+    """Request body for POST /auth/token."""
+
+    client_id: str = Field(..., min_length=1, description="Caller identifier, recorded in the token's 'sub' claim")
+    client_secret: str = Field(..., min_length=1)
+
+
+class TokenResponse(BaseModel):
+    """Response body for POST /auth/token."""
+
+    access_token: str
+    token_type: str = "bearer"
+    scope: str
+    expires_in: int
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()

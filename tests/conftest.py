@@ -12,8 +12,8 @@ Two fixtures apply automatically (autouse) to every test in this suite by defaul
     reads its API keys from os.environ at request time rather than at import time --
     same lesson, applied consistently.)
 
-  - bypass_auth: overrides the three API-key dependencies (require_write, require_read,
-    require_compliance) to be no-ops, since most tests in this suite are about
+  - bypass_auth: overrides the three JWT scope dependencies (require_write,
+    require_read, require_compliance) to be no-ops, since most tests in this suite are about
     business logic (hash chains, queries, redaction, etc.), not auth enforcement
     itself. Auth enforcement is tested exhaustively and explicitly in
     tests/test_auth.py, which overrides THIS fixture locally (same name, shadows the

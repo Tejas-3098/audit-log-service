@@ -45,34 +45,71 @@ FastAPI's built-in Swagger UI) are at `http://localhost:8000/docs`.
 The SQLite database file (`audit_log.db`) is created automatically on first startup
 in the project root.
 
-## Authentication
+## Authentication and Authorization
 
-Every `/audit/*` endpoint requires an `X-API-Key` header. Three scopes exist — see
-[`ARCHITECTURE.md`](ARCHITECTURE.md#9-authentication) for the full reasoning:
+Every `/audit/*` endpoint requires a signed, short-lived bearer token — see
+[`ARCHITECTURE.md`](ARCHITECTURE.md#9-authentication-and-authorization) for the full
+design (authentication and authorization are treated as two distinct, separately
+enforced concerns: 401 vs. 403).
 
-| Scope | Default key (local dev only) | Required for |
+**1. Exchange a client secret for a token:**
+```bash
+curl -X POST http://localhost:8000/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"client_id": "my-service", "client_secret": "dev-write-secret-CHANGE-ME"}'
+```
+Response includes `access_token`, `scope` (derived from which secret you presented),
+and `expires_in` (seconds — tokens are valid for 15 minutes).
+
+**2. Use the token on subsequent requests:**
+```bash
+curl -X POST http://localhost:8000/audit/events \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+```
+
+| Scope | Default client secret (local dev only) | Required for |
 |---|---|---|
-| `write` | `dev-write-key-CHANGE-ME` | `POST /audit/events`, `POST /audit/retention/archive`, `POST /audit/events/{id}/redact` |
-| `read` | `dev-read-key-CHANGE-ME` | `GET /audit/events`, `GET /audit/verify`, `GET /audit/export` |
-| `compliance` | `dev-compliance-key-CHANGE-ME` | `GET /audit/compliance/account-access-report` |
+| `write` | `dev-write-secret-CHANGE-ME` | `POST /audit/events`, `POST /audit/retention/archive`, `POST /audit/events/{id}/redact` |
+| `read` | `dev-read-secret-CHANGE-ME` | `GET /audit/events`, `GET /audit/verify`, `GET /audit/export` |
+| `compliance` | `dev-compliance-secret-CHANGE-ME` | `GET /audit/compliance/account-access-report` |
 
-`GET /health` requires no auth.
+`GET /health` and `POST /auth/token` itself require no auth.
 
-**These default keys are for local development only.** For any real deployment,
-override them via environment variables before starting the service:
+**These default client secrets are for local development only.** For any real
+deployment, override them — and the token-signing secret — via environment
+variables before starting the service:
 
 ```bash
-export AUDIT_LOG_API_KEY_WRITE="<your-secret-write-key>"
-export AUDIT_LOG_API_KEY_READ="<your-secret-read-key>"
-export AUDIT_LOG_API_KEY_COMPLIANCE="<your-secret-compliance-key>"
+export AUDIT_LOG_CLIENT_SECRET_WRITE="<your-secret>"
+export AUDIT_LOG_CLIENT_SECRET_READ="<your-secret>"
+export AUDIT_LOG_CLIENT_SECRET_COMPLIANCE="<your-secret>"
+export AUDIT_LOG_JWT_SIGNING_SECRET="<a-long-random-secret-distinct-from-the-above>"
 ```
 
 ## Example usage
 
+The examples below assume you've obtained tokens as shown in the Authentication
+section above and stored them, e.g.:
+```bash
+export WRITE_TOKEN=$(curl -s -X POST http://localhost:8000/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"client_id": "cli", "client_secret": "dev-write-secret-CHANGE-ME"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+export READ_TOKEN=$(curl -s -X POST http://localhost:8000/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"client_id": "cli", "client_secret": "dev-read-secret-CHANGE-ME"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+export COMPLIANCE_TOKEN=$(curl -s -X POST http://localhost:8000/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"client_id": "cli", "client_secret": "dev-compliance-secret-CHANGE-ME"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+```
+Tokens expire after 15 minutes — re-run the relevant export above if a later command
+starts returning 401.
+
 Write an event:
 ```bash
 curl -X POST http://localhost:8000/audit/events \
-  -H "X-API-Key: dev-write-key-CHANGE-ME" \
+  -H "Authorization: Bearer $WRITE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "event_type": "USER_LOGIN",
@@ -87,13 +124,13 @@ curl -X POST http://localhost:8000/audit/events \
 Query events:
 ```bash
 curl "http://localhost:8000/audit/events?actor_id=user-123" \
-  -H "X-API-Key: dev-read-key-CHANGE-ME"
+  -H "Authorization: Bearer $READ_TOKEN"
 ```
 
 Verify the chain:
 ```bash
 curl http://localhost:8000/audit/verify \
-  -H "X-API-Key: dev-read-key-CHANGE-ME"
+  -H "Authorization: Bearer $READ_TOKEN"
 ```
 
 **To see tamper detection in action**, stop the server, open `audit_log.db` directly
@@ -104,13 +141,13 @@ identify the affected record.
 Archive old records:
 ```bash
 curl -X POST "http://localhost:8000/audit/retention/archive?older_than_days=90" \
-  -H "X-API-Key: dev-write-key-CHANGE-ME"
+  -H "Authorization: Bearer $WRITE_TOKEN"
 ```
 
 Redact a payload field:
 ```bash
 curl -X POST http://localhost:8000/audit/events/1/redact \
-  -H "X-API-Key: dev-write-key-CHANGE-ME" \
+  -H "Authorization: Bearer $WRITE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"fields": ["account_number"]}'
 ```
@@ -118,13 +155,13 @@ curl -X POST http://localhost:8000/audit/events/1/redact \
 Export a verifiable bundle:
 ```bash
 curl "http://localhost:8000/audit/export?resource_id=acct-1" \
-  -H "X-API-Key: dev-read-key-CHANGE-ME"
+  -H "Authorization: Bearer $READ_TOKEN"
 ```
 
 Generate a compliance report (Scenario C):
 ```bash
 curl "http://localhost:8000/audit/compliance/account-access-report?requested_by=regulator-1" \
-  -H "X-API-Key: dev-compliance-key-CHANGE-ME"
+  -H "Authorization: Bearer $COMPLIANCE_TOKEN"
 ```
 
 ## Running the tests

@@ -181,11 +181,43 @@ declared position is internally consistent with what was true at export time, wh
 recipient can later cross-check against a fresh `/audit/verify` call or a subsequent
 export.
 
-## 9. Authentication
+## 9. Authentication and Authorization
 
-Not specified in the assignment. Minimal static API key implemented (documented in
-`README.md`), with production RBAC/OAuth2/mTLS explicitly scoped out — see
-`REQUIREMENTS.md` §3 for the full reasoning on this trade-off.
+Not specified in the assignment initially; upgraded from an initial static API-key
+model after live review feedback specifically asking for genuine auth and
+authorization. The two are treated as distinct concerns:
+
+- **Authentication** — is this request genuinely from someone holding a valid,
+  current credential? Implemented as short-lived (15-minute) JWT bearer tokens
+  (HS256), signed and verified with a timing-safe HMAC comparison
+  (`hmac.compare_digest`), checked for both signature validity and expiry.
+  A tampered or forged token is cryptographically detectable — verified explicitly
+  in `tests/test_auth.py` by flipping a single character in a valid token's payload
+  and confirming it's rejected.
+- **Authorization** — given a genuinely authenticated caller, are they permitted to
+  do *this specific thing*? Enforced via the token's `scope` claim
+  (`write`/`read`/`compliance`) checked against what the endpoint requires. A valid,
+  unexpired token for the wrong scope returns **403 Forbidden**, distinct from
+  **401 Unauthorized** for missing/invalid/expired credentials — 401 means "we don't
+  know who you are," 403 means "we know who you are, and the answer is no."
+
+**Flow:** a client exchanges one of three pre-shared client secrets for a token via
+`POST /auth/token`; the requested scope is derived from *which* secret was
+presented (a client can't request a scope it doesn't hold credentials for). The
+token is then presented as `Authorization: Bearer <token>` on every subsequent
+request.
+
+**Implementation note:** the JWT encode/decode logic (`app/jwt_utils.py`) is
+hand-rolled using only the Python standard library (`hmac`, `hashlib`, `base64`,
+`json`) rather than a third-party library — a deliberate choice to avoid adding a
+dependency for something this size, and it was verified against a published JWT
+test vector (the standard jwt.io HS256 example) to confirm genuine spec compliance,
+not just internal self-consistency.
+
+**Still not full OAuth2** — no refresh tokens, no external identity provider
+integration, no token revocation list (a compromised token remains valid until its
+15-minute expiry). Documented here as the honest next step for genuine production
+use, alongside the broader RBAC/mTLS discussion in `REQUIREMENTS.md` §3.
 
 ## 10. Deployment Considerations
 
